@@ -44,27 +44,33 @@ app.transaction(
       local layerName = layer.name
       layer.isVisible = true
 
+      local channelColors = {
+        ["Red"] =     { r = 1, g = 0, b = 0 },
+        ["Green"] =   { r = 0, g = 1, b = 0 },
+        ["Blue"] =    { r = 0, g = 0, b = 1 },
+        ["Cyan"] =    { r = 0, g = 1, b = 1 },
+        ["Magenta"] = { r = 1, g = 0, b = 1 },
+        ["Yellow"] =  { r = 1, g = 1, b = 0 }
+      }
+
+      local chR = channelColors[channel].r --user selected multiplier for red channel
+      local chG = channelColors[channel].g --user selected multiplier for green channel
+      local chB = channelColors[channel].b --user selected multiplier for blue channel
+
       for pixel in celCopy:pixels() do
         -- map channel names to color components
-        local channelColors = {
-          ["Red"] =     { r = 1, g = 0, b = 0 },
-          ["Green"] =   { r = 0, g = 1, b = 0 },
-          ["Blue"] =    { r = 0, g = 0, b = 1 },
-          ["Cyan"] =    { r = 0, g = 1, b = 1 },
-          ["Magenta"] = { r = 1, g = 0, b = 1 },
-          ["Yellow"] =  { r = 1, g = 1, b = 0 }
-        }
+        
         local chA
           if keepAlpha then
             chA = app.pixelColor.rgbaA(pixel()) -- retain existing transparency value
           else
-            chA = 1 -- override transparency value
+            chA = 255 -- override transparency value
           end
         -- get each pixel's current color channel values
         celCopy:drawPixel(pixel.x, pixel.y, Color {
-            r = app.pixelColor.rgbaR(pixel()) * channelColors[channel].r,
-            g = app.pixelColor.rgbaG(pixel()) * channelColors[channel].g,
-            b = app.pixelColor.rgbaB(pixel()) * channelColors[channel].b,
+            r = app.pixelColor.rgbaR(pixel()) * chR,
+            g = app.pixelColor.rgbaG(pixel()) * chG,
+            b = app.pixelColor.rgbaB(pixel()) * chB,
             a = chA
         })
       end
@@ -74,9 +80,36 @@ app.transaction(
     end
   end
 )
+
+app.transaction( --Image of the layer's alpha channel in black and white
+  "copy alpha channel",
+  function ()
+    function CopyAlpha()
+      local cel = app.cel
+      local celCopy = app.cel.image:clone()
+      app.command.duplicateLayer(cel.layer)
+      local layer = app.cel.layer
+      local layerName = layer.name
+      layer.isVisible = true
+
+      for pixel in celCopy:pixels() do
+        local alpha = app.pixelColor.rgbaA(pixel())
+        celCopy:drawPixel(pixel.x, pixel.y, Color {
+            r = alpha,
+            g = alpha,
+            b = alpha,
+            a = 255
+        })
+      end
+      app.layer.name = layerName .. ": Alpha"
+      app.image:drawImage(celCopy)
+    end
+  end
+)
+
 local channelNames = { "Red", "Green", "Blue", "Cyan", "Magenta", "Yellow" }
 
-local function main()
+local function copy_color_channel_dialog() --take an image and copy the selected color channel to a new layer
   if not checkActiveElements() then
     return -- bail
   else
@@ -108,15 +141,32 @@ local function main()
           end
         end
       }
+      channelDlg:button { text = "Copy RBGA Channels", onclick = function ()
+          for i, channel in ipairs({ "Red", "Green", "Blue" }) do
+            local currentLayer = app.layer
+            CopyColor(channel, false)
+            app.layer = currentLayer
+          end
+          CopyAlpha()
+          channelDlg:close()
+        end
+      }
       :newrow()
       :separator { text = "Primary Channels" }
       :newrow()
       createChannelButtons(channelDlg) -- add button for each color channel
       channelDlg:newrow()
+      :button { text = "Copy Alpha", onclick = function ()
+          CopyAlpha()
+          channelDlg:close()
+        end
+      }
+      :newrow()
       :check { id = "keepAlpha", text = "Retain transparency", selected = true }
       :show()
   end
 end
+
 
 -- Aseprite plugin API stuff...
 ---@diagnostic disable-next-line: lowercase-global
@@ -129,7 +179,7 @@ function init(plugin) -- initialize extension
       id = "CopyColorChannel",
       title = "Copy Color Channel...",
       group = "sprite_color",
-      onclick = main -- run main function
+      onclick = copy_color_channel_dialog
   }
 end
 
