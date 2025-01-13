@@ -81,6 +81,37 @@ app.transaction(
   end
 )
 
+app.transaction(
+  "recombine rgba",
+  function ()
+    function RecombineRGBA(layer_r, layer_g, layer_b, layer_a)
+      local cel = app.cel
+      local celRed = layer_r:cel(1) -- get the first cel of the red layer
+      local celGreen = layer_g:cel(1) -- get the first cel of the green layer
+      local celBlue = layer_b:cel(1) -- get the first cel of the blue layer
+      local celAlpha = layer_a:cel(1) -- get the first cel of the alpha layer
+      local celCopy = celRed.image:clone()
+      app.command.duplicateLayer(cel.layer)
+
+      for pixel in celCopy:pixels() do
+        local r = app.pixelColor.rgbaR(celRed.image:getPixel(pixel.x, pixel.y))
+        local g = app.pixelColor.rgbaG(celGreen.image:getPixel(pixel.x, pixel.y))
+        local b = app.pixelColor.rgbaB(celBlue.image:getPixel(pixel.x, pixel.y))
+        local a = app.pixelColor.rgbaR(celAlpha.image:getPixel(pixel.x, pixel.y))
+        celCopy:drawPixel(pixel.x, pixel.y, Color {
+            r = r,
+            g = g,
+            b = b,
+            a = a
+        })
+      end
+      app.layer.name = app.layer.name .. ": Recombined"
+      --app.image:drawImage(celCopy, cel.position)
+      app.image:drawImage(celCopy)
+    end
+  end
+)
+
 app.transaction( --Image of the layer's alpha channel in black and white
   "copy alpha channel",
   function ()
@@ -180,6 +211,84 @@ function init(plugin) -- initialize extension
       title = "Copy Color Channel...",
       group = "sprite_color",
       onclick = copy_color_channel_dialog
+  }
+
+  -- add "Recombine RGBA" command to palette options menu
+  plugin:newCommand {
+      id = "RecombineRGBA",
+      title = "Recombine RGBA...",
+      group = "sprite_color",
+      onclick = function ()
+        
+        local function layers_to_strings()
+          local layers = {}
+          for i, layer in ipairs(app.sprite.layers) do
+            layers[i] = layer.name
+          end
+          return layers
+        end
+
+        local function string_to_layer(layer_name)
+          for i, layer in ipairs(app.sprite.layers) do
+            if layer.name == layer_name then
+              return layer
+            end
+          end
+          --Show dialog of error
+          local dlg = Dialog("Error")
+          dlg:label { text = "Layer not found: " .. layer_name }
+          dlg:show()
+        end
+
+        local function find_layer_containing_substring(layer_name)
+          for i, layer in ipairs(app.sprite.layers) do
+            if layer.name:find(layer_name) then
+              return layer
+            end
+          end
+          --Show dialog of error
+          local dlg = Dialog("Error")
+          dlg:label { text = "Layer not found containing substring: " .. layer_name }
+        end
+
+        local dlg = Dialog("Recombine RGBA")
+        dlg:combobox {
+          id = "layer_r",
+          label = "Red Layer",
+          options = layers_to_strings(),
+          option = find_layer_containing_substring("Red").name,
+        }
+        dlg:combobox {
+          id = "layer_g",
+          label = "Green Layer",
+          options = layers_to_strings(),
+          option = find_layer_containing_substring("Green").name,
+        }
+        dlg:combobox {
+          id = "layer_b",
+          label = "Blue Layer",
+          options = layers_to_strings(),
+          option = find_layer_containing_substring("Blue").name,
+        }
+        dlg:combobox {
+          id = "layer_a",
+          label = "Alpha Layer",
+          options = layers_to_strings(),
+          option = find_layer_containing_substring("Alpha").name,
+        }
+        dlg:button {
+          text = "Recombine",
+          onclick = function ()
+            --debug, print layer red's name
+            --local dlg2 = Dialog("Debug")
+            --dlg2:label { text = dlg.data.layer_r }
+            --dlg2:show()
+            RecombineRGBA(string_to_layer(dlg.data.layer_r), string_to_layer(dlg.data.layer_g), string_to_layer(dlg.data.layer_b), string_to_layer(dlg.data.layer_a))
+            dlg:close()
+          end
+        }
+        dlg:show()
+      end
   }
 end
 
