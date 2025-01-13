@@ -113,7 +113,7 @@ app.transaction(
         })
       end
       app.layer.name = app.layer.name .. ": Recombined"
-      --app.image:drawImage(celCopy, cel.position)
+      app.image:clear()
       app.image:drawImage(celCopy)
     end
   end
