@@ -56,10 +56,16 @@ app.transaction(
       local chR = channelColors[channel].r --user selected multiplier for red channel
       local chG = channelColors[channel].g --user selected multiplier for green channel
       local chB = channelColors[channel].b --user selected multiplier for blue channel
+      local chAMultiplier = 1.0 / (chR + chG + chB) --multiplier for alpha channel
 
       for pixel in celCopy:pixels() do
         -- map channel names to color components
-        
+        local r = app.pixelColor.rgbaR(pixel()) * chR
+        local g = app.pixelColor.rgbaG(pixel()) * chG
+        local b = app.pixelColor.rgbaB(pixel()) * chB
+
+        local alpha_2 = chAMultiplier * (r + g + b)
+
         local chA
           if keepAlpha then
             chA = app.pixelColor.rgbaA(pixel()) -- retain existing transparency value
@@ -68,14 +74,15 @@ app.transaction(
           end
         -- get each pixel's current color channel values
         celCopy:drawPixel(pixel.x, pixel.y, Color {
-            r = app.pixelColor.rgbaR(pixel()) * chR,
-            g = app.pixelColor.rgbaG(pixel()) * chG,
-            b = app.pixelColor.rgbaB(pixel()) * chB,
-            a = chA
+            r = r,
+            g = g,
+            b = b,
+            a = alpha_2
         })
       end
       -- create a new layer with the selected color component
       app.layer.name = layerName .. ": " .. channel
+      app.image:clear()
       app.image:drawImage(celCopy)
     end
   end
@@ -97,7 +104,7 @@ app.transaction(
         local r = app.pixelColor.rgbaR(celRed.image:getPixel(pixel.x, pixel.y))
         local g = app.pixelColor.rgbaG(celGreen.image:getPixel(pixel.x, pixel.y))
         local b = app.pixelColor.rgbaB(celBlue.image:getPixel(pixel.x, pixel.y))
-        local a = app.pixelColor.rgbaR(celAlpha.image:getPixel(pixel.x, pixel.y))
+        local a = app.pixelColor.rgbaA(celAlpha.image:getPixel(pixel.x, pixel.y))
         celCopy:drawPixel(pixel.x, pixel.y, Color {
             r = r,
             g = g,
@@ -126,10 +133,10 @@ app.transaction( --Image of the layer's alpha channel in black and white
       for pixel in celCopy:pixels() do
         local alpha = app.pixelColor.rgbaA(pixel())
         celCopy:drawPixel(pixel.x, pixel.y, Color {
-            r = alpha,
-            g = alpha,
-            b = alpha,
-            a = 255
+            r = 0,
+            g = 0,
+            b = 0,
+            a = alpha
         })
       end
       app.layer.name = layerName .. ": Alpha"
