@@ -147,6 +147,52 @@ app.transaction( --Image of the layer's alpha channel in black and white
 
 local channelNames = { "Red", "Green", "Blue", "Cyan", "Magenta", "Yellow" }
 
+local function drawpixel(to_x,to_y,to_sprite,from_x,from_y,from_sprite)
+  local from_cel = from_sprite.cels[1]
+  local from_pixel = from_cel.image:getPixel(from_x,from_y)
+  local from_color = Color(from_pixel)
+  local to_cel = to_sprite.cels[1]
+  to_cel.image:drawPixel(to_x,to_y,from_color)
+end
+
+local function import_sprites_dialogue()
+  local tile_width = 512
+  local tile_height = 512
+
+  local dlg = Dialog("Import Terrain Color Maps")
+  dlg:file { id = "file_1", label = "File", open = false, save = false, load  = true}
+  dlg:file { id = "file_2", label = "File", open = false, save = false, load  = true}
+  dlg:file { id = "file_3", label = "File", open = false, save = false, load  = true}
+  dlg:file { id = "file_4", label = "File", open = false, save = false, load  = true}
+  dlg:button { text = "Import", onclick = function ()
+      local file_1 = dlg.data.file_1
+      local sprite_1 = Sprite{ fromFile = file_1 }
+      local file_2 = dlg.data.file_2
+      local sprite_2 = Sprite{ fromFile = file_2 }
+      local file_3 = dlg.data.file_3
+      local sprite_3 = Sprite{ fromFile = file_3 }
+      local file_4 = dlg.data.file_4
+      local sprite_4 = Sprite{ fromFile = file_4 }
+      local sprite = Sprite(1024,1024) --main canvas
+      sprite.layers[1].name = "Terrain Color Maps"
+      for x = 0,tile_width-1,1 do
+        for y = 0,tile_height-1,1 do
+          if sprite_1 ~= nil then drawpixel(x,y,sprite,x,y,sprite_1) end
+          if sprite_2 ~= nil then drawpixel(x+tile_width,y,sprite,x,y,sprite_2) end
+          if sprite_3 ~= nil then drawpixel(x,y+tile_height,sprite,x,y,sprite_3) end
+          if sprite_4 ~= nil then drawpixel(x+tile_width,y+tile_height,sprite,x,y,sprite_4) end
+        end
+      end
+      if (sprite_1 ~= nil) then sprite_1:close() end
+      if (sprite_2 ~= nil) then sprite_2:close() end
+      if (sprite_3 ~= nil) then sprite_3:close() end
+      if (sprite_4 ~= nil) then sprite_4:close() end
+      dlg:close()
+    end
+  }
+  dlg:show()
+end
+
 local function copy_color_channel_dialog() --take an image and copy the selected color channel to a new layer
   if not checkActiveElements() then
     return -- bail
@@ -211,6 +257,13 @@ end
 function init(plugin) -- initialize extension
   preferences = plugin.preferences -- update preferences global with plugin.preferences values
 
+
+  plugin:newCommand {
+      id = "ImportTerrainColorMaps",
+      title = "Import Terrain Color Maps...",
+      group = "file_import",
+      onclick = import_sprites_dialogue
+  }
 
   -- add "Copy Color Channel" command to palette options menu
   plugin:newCommand {
