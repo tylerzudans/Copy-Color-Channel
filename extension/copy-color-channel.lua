@@ -33,48 +33,6 @@ local function checkActiveElements()
   return true -- all checks passed
 end
 
-local function CopyColorChannelFromSprite(sprite, channel, keepAlpha) --given a layer, add new layer to the active sprite that is a copy of that, but with only the selected color channel
-  local sprite_main_layer = sprite.layers[1]
-  local cel = sprite_main_layer:cel(1)
-  local imageMain = cel.image
-  local copyLayer = sprite:newLayer()
-  copyLayer.name = sprite_main_layer.name .. ": " .. channel
-  local imageCopy = Image(imageMain.spec) --blank image of correct dimensions
-  --local imageCopy = sprite:
-
-
-  local channelColors = {
-    ["Red"] =     { r = 1, g = 0, b = 0 },
-    ["Green"] =   { r = 0, g = 1, b = 0 },
-    ["Blue"] =    { r = 0, g = 0, b = 1 },
-    ["Cyan"] =    { r = 0, g = 1, b = 1 },
-    ["Magenta"] = { r = 1, g = 0, b = 1 },
-    ["Yellow"] =  { r = 1, g = 1, b = 0 }
-  }
-
-  local chR = channelColors[channel].r --user selected multiplier for red channel
-  local chG = channelColors[channel].g --user selected multiplier for green channel
-  local chB = channelColors[channel].b --user selected multiplier for blue channel
-  local chAMultiplier = 1.0 / (chR + chG + chB) --multiplier for alpha channel
-
-  for pixel in imageMain:pixels() do --foreach pixel in the image
-    -- map channel names to color components
-    local r = Color(imageMain:getPixel(pixel.x,pixel.y)).red * chR
-    local g = Color(imageMain:getPixel(pixel.x,pixel.y)).green * chG
-    local b = Color(imageMain:getPixel(pixel.x,pixel.y)).blue * chB
-    local alpha = chAMultiplier * (r + g + b) --alpha equal to the sum of the color channels values that came through the filter, divided by how much the filter can let colors through
-
-    imageCopy:drawPixel(pixel.x, pixel.y, Color {
-        r = r,
-        g = g,
-        b = b,
-        a = alpha
-    })
-  end
-  sprite:newCel(copyLayer, 1, imageCopy, Point(0,0))
-end
-
-
 local function CopyAlphaFromSprite (sprite)
   local sprite_main_layer = sprite.layers[1]
   local cel = sprite_main_layer:cel(1)
@@ -98,14 +56,16 @@ end
 app.transaction(
   "copy color channel",
   function ()
-    function CopyColor(channel, keepAlpha)
-      local cel = app.cel
-      local celCopy = cel.image:clone()
-      app.command.duplicateLayer(cel.layer)
-      local layer = cel.layer
-      local layerName = layer.name
-      layer.isVisible = true
-
+    function CopyColorChannelFromSprite(sprite, channel, keepAlpha) --given a layer, add new layer to the active sprite that is a copy of that, but with only the selected color channel
+      local sprite_main_layer = sprite.layers[1]
+      local cel = sprite_main_layer:cel(1)
+      local imageMain = cel.image
+      local copyLayer = sprite:newLayer()
+      copyLayer.name = sprite_main_layer.name .. ": " .. channel
+      local imageCopy = Image(imageMain.spec) --blank image of correct dimensions
+      --local imageCopy = sprite:
+    
+    
       local channelColors = {
         ["Red"] =     { r = 1, g = 0, b = 0 },
         ["Green"] =   { r = 0, g = 1, b = 0 },
@@ -114,38 +74,27 @@ app.transaction(
         ["Magenta"] = { r = 1, g = 0, b = 1 },
         ["Yellow"] =  { r = 1, g = 1, b = 0 }
       }
-
+    
       local chR = channelColors[channel].r --user selected multiplier for red channel
       local chG = channelColors[channel].g --user selected multiplier for green channel
       local chB = channelColors[channel].b --user selected multiplier for blue channel
       local chAMultiplier = 1.0 / (chR + chG + chB) --multiplier for alpha channel
-
-      for pixel in celCopy:pixels() do
+    
+      for pixel in imageMain:pixels() do --foreach pixel in the image
         -- map channel names to color components
-        local r = app.pixelColor.rgbaR(pixel()) * chR
-        local g = app.pixelColor.rgbaG(pixel()) * chG
-        local b = app.pixelColor.rgbaB(pixel()) * chB
-
-        local alpha_2 = chAMultiplier * (r + g + b)
-
-        local chA
-          if keepAlpha then
-            chA = app.pixelColor.rgbaA(pixel()) -- retain existing transparency value
-          else
-            chA = 255 -- override transparency value
-          end
-        -- get each pixel's current color channel values
-        celCopy:drawPixel(pixel.x, pixel.y, Color {
+        local r = Color(imageMain:getPixel(pixel.x,pixel.y)).red * chR
+        local g = Color(imageMain:getPixel(pixel.x,pixel.y)).green * chG
+        local b = Color(imageMain:getPixel(pixel.x,pixel.y)).blue * chB
+        local alpha = chAMultiplier * (r + g + b) --alpha equal to the sum of the color channels values that came through the filter, divided by how much the filter can let colors through
+    
+        imageCopy:drawPixel(pixel.x, pixel.y, Color {
             r = r,
             g = g,
             b = b,
-            a = alpha_2
+            a = alpha
         })
       end
-      -- create a new layer with the selected color component
-      app.layer.name = layerName .. ": " .. channel
-      app.image:clear()
-      app.image:drawImage(celCopy)
+      sprite:newCel(copyLayer, 1, imageCopy, Point(0,0))
     end
   end
 )
@@ -154,29 +103,70 @@ app.transaction(
   "recombine rgba",
   function ()
     function RecombineRGBA(layer_r, layer_g, layer_b, layer_a)
+      local sprite = app.activeSprite
       local cel = app.cel
-      local celRed = layer_r:cel(1) -- get the first cel of the red layer
-      local celGreen = layer_g:cel(1) -- get the first cel of the green layer
-      local celBlue = layer_b:cel(1) -- get the first cel of the blue layer
-      local celAlpha = layer_a:cel(1) -- get the first cel of the alpha layer
-      local celCopy = celRed.image:clone()
-      app.command.duplicateLayer(cel.layer)
+      local imageCopy = Image(cel.image.spec) --blank image of correct dimensions
+      imageCopy:drawImage(layer_r:cel(1).image)
+      imageCopy:drawImage(layer_g:cel(1).image)
+      imageCopy:drawImage(layer_b:cel(1).image)
+      local recombined_layer = sprite:newLayer()
+      recombined_layer.name = sprite.layers[1].name .. ": Recombined"
 
-      for pixel in celCopy:pixels() do
-        local r = app.pixelColor.rgbaR(celRed.image:getPixel(pixel.x, pixel.y))
-        local g = app.pixelColor.rgbaG(celGreen.image:getPixel(pixel.x, pixel.y))
-        local b = app.pixelColor.rgbaB(celBlue.image:getPixel(pixel.x, pixel.y))
-        local a = app.pixelColor.rgbaA(celAlpha.image:getPixel(pixel.x, pixel.y))
-        celCopy:drawPixel(pixel.x, pixel.y, Color {
+      local imageAlpha = layer_a:cel(1).image -- get the first cel of the alpha layer
+
+      for pixel in imageCopy:pixels() do
+        --Get the color values of the pixel
+        local r = app.pixelColor.rgbaR(imageCopy:getPixel(pixel.x, pixel.y))
+        local g = app.pixelColor.rgbaG(imageCopy:getPixel(pixel.x, pixel.y))
+        local b = app.pixelColor.rgbaB(imageCopy:getPixel(pixel.x, pixel.y))
+        local a = app.pixelColor.rgbaA(imageAlpha:getPixel(pixel.x, pixel.y))
+
+        --[[
+        --Normalize the color values
+        local normalization_factor = (r + g + b + a)
+        if normalization_factor > 0 then
+          r = r / normalization_factor
+          g = g / normalization_factor
+          b = b / normalization_factor
+          a = a / normalization_factor
+        end
+        --]]
+        
+        --Apply
+        imageCopy:drawPixel(pixel.x, pixel.y, Color {
             r = r,
             g = g,
             b = b,
             a = a
         })
       end
-      app.layer.name = app.layer.name .. ": Recombined"
-      app.image:clear()
-      app.image:drawImage(celCopy)
+      sprite:newCel(recombined_layer, 1, imageCopy, Point(0,0))
+      return recombined_layer
+    end
+  end
+)
+
+app.transaction("split and export",
+  function ()
+    function SplitForExport(layer)
+      --make this image of this layer into 4 seperate new sprites
+      local image = layer:cel(1).image
+      local width = image.width
+      local height = image.height
+      local half_width = width / 2
+      local half_height = height / 2
+      local sprite_1 = Sprite(half_width, half_height)
+      sprite_1.layers[1].name = layer.name .. " A" --top left
+      sprite_1:newCel(sprite_1.layers[1], 1, image:clone(), Point(0,0))
+      local sprite_2 = Sprite(half_width, half_height)
+      sprite_2.layers[1].name = layer.name .. " B" --top right
+      sprite_2:newCel(sprite_2.layers[1], 1, image:clone(), Point(-half_width,0))
+      local sprite_3 = Sprite(half_width, half_height)
+      sprite_3.layers[1].name = layer.name .. " C" --bottom left
+      sprite_3:newCel(sprite_3.layers[1], 1, image:clone(), Point(0,-half_height))
+      local sprite_4 = Sprite(half_width, half_height)
+      sprite_4.layers[1].name = layer.name .. " D" --bottom right
+      sprite_4:newCel(sprite_4.layers[1], 1, image:clone(), Point(-half_width,-half_height))
     end
   end
 )
@@ -262,7 +252,7 @@ local function import_sprites_dialogue()
       CopyColorChannelFromSprite(sprite, "Blue", false)
       CopyAlphaFromSprite(sprite) 
       --bug, the screen doesn't update until the user manually clicks on the sprite
-      
+
 
       copying_dialog:close()
     end
@@ -433,11 +423,16 @@ function init(plugin) -- initialize extension
         dlg:button {
           text = "Recombine",
           onclick = function ()
-            --debug, print layer red's name
-            --local dlg2 = Dialog("Debug")
-            --dlg2:label { text = dlg.data.layer_r }
-            --dlg2:show()
-            RecombineRGBA(string_to_layer(dlg.data.layer_r), string_to_layer(dlg.data.layer_g), string_to_layer(dlg.data.layer_b), string_to_layer(dlg.data.layer_a))
+            local layer_r = string_to_layer(dlg.data.layer_r)
+            local layer_g = string_to_layer(dlg.data.layer_g)
+            local layer_b = string_to_layer(dlg.data.layer_b)
+            local layer_a = string_to_layer(dlg.data.layer_a)
+            local layer_recombined = RecombineRGBA(layer_r, layer_g, layer_b, layer_a)
+            layer_r.isVisible = false
+            layer_g.isVisible = false
+            layer_b.isVisible = false
+            layer_a.isVisible = false
+            SplitForExport(layer_recombined)
             dlg:close()
           end
         }
