@@ -106,19 +106,20 @@ app.transaction(
       local sprite = app.activeSprite
       local cel = app.cel
       local imageCopy = Image(cel.image.spec) --blank image of correct dimensions
-      imageCopy:drawImage(layer_r:cel(1).image)
-      imageCopy:drawImage(layer_g:cel(1).image)
-      imageCopy:drawImage(layer_b:cel(1).image)
+      local imageRGB = Image(cel.image.spec) --blank image of correct dimensions
+      imageRGB:drawImage(layer_r:cel(1).image)
+      imageRGB:drawImage(layer_g:cel(1).image)
+      imageRGB:drawImage(layer_b:cel(1).image)
       local recombined_layer = sprite:newLayer()
       recombined_layer.name = sprite.layers[1].name .. ": Recombined"
 
       local imageAlpha = layer_a:cel(1).image -- get the first cel of the alpha layer
 
-      for pixel in imageCopy:pixels() do
+      for pixel in imageCopy:pixels() do --Bug for some reason it creates dark areas everywhere there is a mix of 2 color channels
         --Get the color values of the pixel
-        local r = app.pixelColor.rgbaR(imageCopy:getPixel(pixel.x, pixel.y))
-        local g = app.pixelColor.rgbaG(imageCopy:getPixel(pixel.x, pixel.y))
-        local b = app.pixelColor.rgbaB(imageCopy:getPixel(pixel.x, pixel.y))
+        local r = app.pixelColor.rgbaR(imageRGB:getPixel(pixel.x, pixel.y))
+        local g = app.pixelColor.rgbaG(imageRGB:getPixel(pixel.x, pixel.y))
+        local b = app.pixelColor.rgbaB(imageRGB:getPixel(pixel.x, pixel.y))
         local a = app.pixelColor.rgbaA(imageAlpha:getPixel(pixel.x, pixel.y))
 
         --[[
@@ -131,7 +132,7 @@ app.transaction(
           a = a / normalization_factor
         end
         --]]
-        
+
         --Apply
         imageCopy:drawPixel(pixel.x, pixel.y, Color {
             r = r,
