@@ -33,6 +33,68 @@ local function checkActiveElements()
   return true -- all checks passed
 end
 
+local function CopyColorChannelFromSprite(sprite, channel, keepAlpha) --given a layer, add new layer to the active sprite that is a copy of that, but with only the selected color channel
+  local sprite_main_layer = sprite.layers[1]
+  local cel = sprite_main_layer:cel(1)
+  local imageMain = cel.image
+  local copyLayer = sprite:newLayer()
+  copyLayer.name = sprite_main_layer.name .. ": " .. channel
+  local imageCopy = Image(imageMain.spec) --blank image of correct dimensions
+  --local imageCopy = sprite:
+
+
+  local channelColors = {
+    ["Red"] =     { r = 1, g = 0, b = 0 },
+    ["Green"] =   { r = 0, g = 1, b = 0 },
+    ["Blue"] =    { r = 0, g = 0, b = 1 },
+    ["Cyan"] =    { r = 0, g = 1, b = 1 },
+    ["Magenta"] = { r = 1, g = 0, b = 1 },
+    ["Yellow"] =  { r = 1, g = 1, b = 0 }
+  }
+
+  local chR = channelColors[channel].r --user selected multiplier for red channel
+  local chG = channelColors[channel].g --user selected multiplier for green channel
+  local chB = channelColors[channel].b --user selected multiplier for blue channel
+  local chAMultiplier = 1.0 / (chR + chG + chB) --multiplier for alpha channel
+
+  for pixel in imageMain:pixels() do --foreach pixel in the image
+    -- map channel names to color components
+    local r = Color(imageMain:getPixel(pixel.x,pixel.y)).red * chR
+    local g = Color(imageMain:getPixel(pixel.x,pixel.y)).green * chG
+    local b = Color(imageMain:getPixel(pixel.x,pixel.y)).blue * chB
+    local alpha = chAMultiplier * (r + g + b) --alpha equal to the sum of the color channels values that came through the filter, divided by how much the filter can let colors through
+
+    imageCopy:drawPixel(pixel.x, pixel.y, Color {
+        r = r,
+        g = g,
+        b = b,
+        a = alpha
+    })
+  end
+  sprite:newCel(copyLayer, 1, imageCopy, Point(0,0))
+end
+
+
+local function CopyAlphaFromSprite (sprite)
+  local sprite_main_layer = sprite.layers[1]
+  local cel = sprite_main_layer:cel(1)
+  local imageMain = cel.image
+  local copyLayer = sprite:newLayer()
+  copyLayer.name = sprite_main_layer.name .. ": Alpha"
+  local imageCopy = Image(imageMain.spec) --blank image of correct dimensions
+
+  for pixel in imageMain:pixels() do
+    local alpha = Color(imageMain:getPixel(pixel.x,pixel.y)).alpha
+    imageCopy:drawPixel(pixel.x, pixel.y, Color {
+        r = 0,
+        g = 0,
+        b = 0,
+        a = alpha
+    })
+  end
+  sprite:newCel(copyLayer, 1, imageCopy, Point(0,0))
+end
+
 app.transaction(
   "copy color channel",
   function ()
@@ -155,25 +217,27 @@ local function drawpixel(to_x,to_y,to_sprite,from_x,from_y,from_sprite)
   to_cel.image:drawPixel(to_x,to_y,from_color)
 end
 
+--Import multiple images (4) into one sprite
 local function import_sprites_dialogue()
   local tile_width = 512
   local tile_height = 512
 
-  local dlg = Dialog("Import Terrain Color Maps")
-  dlg:file { id = "file_1", label = "File", open = false, save = false, load  = true}
-  dlg:file { id = "file_2", label = "File", open = false, save = false, load  = true}
-  dlg:file { id = "file_3", label = "File", open = false, save = false, load  = true}
-  dlg:file { id = "file_4", label = "File", open = false, save = false, load  = true}
-  dlg:button { text = "Import", onclick = function ()
-      local file_1 = dlg.data.file_1
+  local import_dialog = Dialog("Import 4 Terrain Color Maps as 1")
+  import_dialog:file { id = "file_1", label = "Top Left", open = false, save = false, load  = true}
+  import_dialog:file { id = "file_2", label = "Top Right", open = false, save = false, load  = true}
+  import_dialog:file { id = "file_3", label = "Bottom Left", open = false, save = false, load  = true}
+  import_dialog:file { id = "file_4", label = "Bottom Right", open = false, save = false, load  = true}
+  import_dialog:button { text = "Import", onclick = function ()
+      import_dialog:close()
+      local file_1 = import_dialog.data.file_1
       local sprite_1 = Sprite{ fromFile = file_1 }
-      local file_2 = dlg.data.file_2
+      local file_2 = import_dialog.data.file_2
       local sprite_2 = Sprite{ fromFile = file_2 }
-      local file_3 = dlg.data.file_3
+      local file_3 = import_dialog.data.file_3
       local sprite_3 = Sprite{ fromFile = file_3 }
-      local file_4 = dlg.data.file_4
+      local file_4 = import_dialog.data.file_4
       local sprite_4 = Sprite{ fromFile = file_4 }
-      local sprite = Sprite(1024,1024) --main canvas
+      local sprite = Sprite(tile_width*2,tile_height*2) --main canvas
       sprite.layers[1].name = "Terrain Color Maps"
       for x = 0,tile_width-1,1 do
         for y = 0,tile_height-1,1 do
@@ -187,10 +251,32 @@ local function import_sprites_dialogue()
       if (sprite_2 ~= nil) then sprite_2:close() end
       if (sprite_3 ~= nil) then sprite_3:close() end
       if (sprite_4 ~= nil) then sprite_4:close() end
-      dlg:close()
+   
+      --now copy the color channels from each layer to a new layer
+      local copying_dialog = Dialog("Copying Color Channels")
+      copying_dialog:label { text = "Copying color channels from each layer to a new layer" }
+      copying_dialog:show()
+
+      CopyColorChannelFromSprite(sprite, "Red", false)
+      CopyColorChannelFromSprite(sprite, "Green", false)
+      CopyColorChannelFromSprite(sprite, "Blue", false)
+      CopyAlphaFromSprite(sprite) 
+      --bug, the screen doesn't update until the user manually clicks on the sprite
+      
+
+      copying_dialog:close()
     end
   }
-  dlg:show()
+  import_dialog:show()
+end
+
+--test copy color RGB channels
+local function copyRGBTest()
+  local sprite = app.activeSprite
+  CopyColorChannelFromSprite(sprite, "Red", false)
+  CopyColorChannelFromSprite(sprite, "Green", false)
+  CopyColorChannelFromSprite(sprite, "Blue", false)
+  CopyAlphaFromSprite(sprite)
 end
 
 local function copy_color_channel_dialog() --take an image and copy the selected color channel to a new layer
@@ -271,6 +357,14 @@ function init(plugin) -- initialize extension
       title = "Copy Color Channel...",
       group = "sprite_color",
       onclick = copy_color_channel_dialog
+  }
+
+  --Test copy RGB channels
+  plugin:newCommand {
+      id = "CopyRGBTest",
+      title = "Copy RGB Test",
+      group = "sprite_color",
+      onclick = copyRGBTest
   }
 
   -- add "Recombine RGBA" command to palette options menu
