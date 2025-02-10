@@ -122,16 +122,15 @@ app.transaction(
         local b = app.pixelColor.rgbaB(imageRGB:getPixel(pixel.x, pixel.y))
         local a = app.pixelColor.rgbaA(imageAlpha:getPixel(pixel.x, pixel.y))
 
-        --[[
+        
         --Normalize the color values
         local normalization_factor = (r + g + b + a)
         if normalization_factor > 0 then
-          r = r / normalization_factor
-          g = g / normalization_factor
-          b = b / normalization_factor
-          a = a / normalization_factor
+          r = 255 * r / normalization_factor
+          g = 255 * g / normalization_factor
+          b = 255 * b / normalization_factor
+          a = 255 * a / normalization_factor
         end
-        --]]
 
         --Apply
         imageCopy:drawPixel(pixel.x, pixel.y, Color {
