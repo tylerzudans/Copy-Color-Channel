@@ -105,22 +105,40 @@ app.transaction(
     function RecombineRGBA(layer_r, layer_g, layer_b, layer_a)
       local sprite = app.activeSprite
       local cel = app.cel
-      local imageCopy = Image(cel.image.spec) --blank image of correct dimensions
-      local imageRGB = Image(cel.image.spec) --blank image of correct dimensions
-      imageRGB:drawImage(layer_r:cel(1).image)
-      imageRGB:drawImage(layer_g:cel(1).image)
-      imageRGB:drawImage(layer_b:cel(1).image)
+      local imageCopy = Image(sprite.width, sprite.height) --blank image size of canvas
+      local imageRGB = Image(sprite.width, sprite.height) --blank image size of canvas
+      local cel_red = layer_r:cel(1)
+      local cel_green = layer_g:cel(1)
+      local cel_blue = layer_b:cel(1)
+      local cel_alpha = layer_a:cel(1)
+      --Draw layers over each other to avoid mixing
+      imageRGB:drawImage(cel_red.image, cel_red.position)
+      imageRGB:drawImage(cel_green.image, cel_green.position)
+      imageRGB:drawImage(cel_blue.image, cel_blue.position)
+      imageRGB: drawImage(cel_alpha.image, cel_alpha.position)
+      
       local recombined_layer = sprite:newLayer()
       recombined_layer.name = sprite.layers[1].name .. ": Recombined"
 
-      local imageAlpha = layer_a:cel(1).image -- get the first cel of the alpha layer
+      
+      local imageAlpha = cel_alpha.image -- get the first cel of the alpha layer
+
+
+      local function getAlphaPixel(cel_alpha, x, y)
+        --if x,y is outside the bounds of the cel, return 0
+        if x < cel_alpha.position.x or x >= cel_alpha.position.x + cel_alpha.image.width or y < cel_alpha.position.y or y >= cel_alpha.position.y + cel_alpha.image.height then
+          return 0
+        end
+        --else return the pixel value by checking x,y converted from sprite space to cel space
+        return app.pixelColor.rgbaA(cel_alpha.image:getPixel(x - cel_alpha.position.x, y - cel_alpha.position.y)) -- shift the alpha cel to match the RGB cel
+      end
 
       for pixel in imageCopy:pixels() do --Bug for some reason it creates dark areas everywhere there is a mix of 2 color channels
         --Get the color values of the pixel
         local r = app.pixelColor.rgbaR(imageRGB:getPixel(pixel.x, pixel.y))
         local g = app.pixelColor.rgbaG(imageRGB:getPixel(pixel.x, pixel.y))
         local b = app.pixelColor.rgbaB(imageRGB:getPixel(pixel.x, pixel.y))
-        local a = app.pixelColor.rgbaA(imageAlpha:getPixel(pixel.x, pixel.y))
+        local a = getAlphaPixel(cel_alpha, pixel.x, pixel.y)
 
         
         --Normalize the color values
